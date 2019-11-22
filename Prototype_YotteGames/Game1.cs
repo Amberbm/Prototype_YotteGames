@@ -1,16 +1,34 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using FireSharp.Config;
+using FireSharp.Interfaces;
+using FireSharp.Response;
+using System;
+using System.Collections.Generic;
 
 namespace Prototype_YotteGames
 {
-    /// <summary>
-    /// This is the main type for your game.
-    /// </summary>
     public class Game1 : Game
     {
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
+        Texture2D  paddle;
+        int[] position= new int[3];
+        int paddleSpeed = 9;
+        int iD=0;
+        KeyboardState currentKeyboardState;
+        SpriteFont font;
+        int players = 2;
+
+        IFirebaseConfig config = new FirebaseConfig
+        {
+            AuthSecret = "IBoEtHAuwYAhmrUQhwyK3M5Uj0YSulczkipm2Cj9",
+            BasePath = "https://prototype-yottegames.firebaseio.com/"
+
+        };
+
+        IFirebaseClient client;
 
         public Game1()
         {
@@ -18,65 +36,120 @@ namespace Prototype_YotteGames
             Content.RootDirectory = "Content";
         }
 
-        /// <summary>
-        /// Allows the game to perform any initialization it needs to before starting to run.
-        /// This is where it can query for any required services and load any non-graphic
-        /// related content.  Calling base.Initialize will enumerate through any components
-        /// and initialize them as well.
-        /// </summary>
-        protected override void Initialize()
+        static void Main()
         {
-            // TODO: Add your initialization logic here
-
-            base.Initialize();
+            using (var game = new Game1())
+                game.Run();
         }
-
-        /// <summary>
-        /// LoadContent will be called once per game and is the place to load
-        /// all of your content.
-        /// </summary>
+        
+      
         protected override void LoadContent()
         {
             // Create a new SpriteBatch, which can be used to draw textures.
+            
             spriteBatch = new SpriteBatch(GraphicsDevice);
+            client = new FireSharp.FirebaseClient(config);
 
-            // TODO: use this.Content to load your game content here
+
+            Random random = new Random();
+            Color color = new Color(random.Next(0, 250), random.Next(0, 250), random.Next(0, 250));
+
+            currentKeyboardState = Keyboard.GetState();
+
+            paddle = Content.Load<Texture2D>("rodeSpeler");
+            font = Content.Load<SpriteFont>("SpelFont");
+
+            // List<String> players = client.Get("ID").ResultAs<List<String>>();
+
+            AssignPaddle();
+
+           
         }
-
-        /// <summary>
-        /// UnloadContent will be called once per game and is the place to unload
-        /// game-specific content.
-        /// </summary>
-        protected override void UnloadContent()
+        
+        protected void HandleInput()
         {
-            // TODO: Unload any non ContentManager content here
+            
+            KeyboardState previousKeyboardState = currentKeyboardState;
+            currentKeyboardState = Keyboard.GetState();
+
+            if (currentKeyboardState.IsKeyDown(Keys.Up))
+            {
+                position[iD] -= paddleSpeed;
+
+                SetData();
+            }
+            if (currentKeyboardState.IsKeyDown(Keys.Down))
+            {
+                position[iD] += paddleSpeed;
+
+                SetData();
+            }
+
+            if (currentKeyboardState.IsKeyDown(Keys.Escape))
+                if (previousKeyboardState.IsKeyUp(Keys.Escape))
+                    Leave();
+
+        }
+        
+        protected void Leave()
+        {
+            SetResponse offline = client.Set("ID/" + iD+"/online",false);
+            Exit();
         }
 
-        /// <summary>
-        /// Allows the game to run logic such as updating the world,
-        /// checking for collisions, gathering input, and playing audio.
-        /// </summary>
-        /// <param name="gameTime">Provides a snapshot of timing values.</param>
+        protected void SetData()
+        {
+            SetResponse setPosition = client.Set("ID/" + iD + "/position", position[iD]);
+
+        }
+        
+        protected void GetData()
+        {
+            for (int i = 1; i <= players; i++)
+            {
+                position[i] = client.Get("ID/" + i + "/position").ResultAs<List<int>>()[0];
+            }
+            
+        }
+
+        protected void AssignPaddle()
+        {
+            for (int i = 1; i <= players; i++)
+            {
+                List<Boolean> on = client.Get("ID/" + i + "/online").ResultAs<List<Boolean>>();
+                if (!on[0])
+                {
+                    iD = i;
+                    position[iD] = client.Get("ID/" + iD + "/position").ResultAs<List<int>>()[0];
+                    SetResponse setonline = client.Set("ID/" + iD + "/online", true);
+                    break;
+                }
+            }
+        }
+
         protected override void Update(GameTime gameTime)
         {
-            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
-                Exit();
-
-            // TODO: Add your update logic here
-
             base.Update(gameTime);
-        }
+           
+            if (iD == 0)
+                AssignPaddle();
+             else
+                 HandleInput();
 
-        /// <summary>
-        /// This is called when the game should draw itself.
-        /// </summary>
-        /// <param name="gameTime">Provides a snapshot of timing values.</param>
+            //GetData();
+           
+        }
+        
+
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
-
-            // TODO: Add your drawing code here
-
+            spriteBatch.Begin();
+            for (int i = 1; i <= players; i++)
+                spriteBatch.Draw(paddle, new Vector2(i * 200, client.Get("ID/" + i + "/position").ResultAs<List<int>>()[0]), Color.AliceBlue);
+            if (iD == 0)
+                spriteBatch.DrawString(font, "No free paddles available", new Vector2(300, 300),Color.Purple);
+            spriteBatch.End();
             base.Draw(gameTime);
         }
     }
