@@ -7,4 +7,6 @@ bij het opstarten word er een paddle toegewezen die nog vrij is
  een paddle word als vrij beschouwd als hij voor 30 secondes niet verbonden is met een gebruiker
  
  de gebuiker kan de toegewezen paddel op en neer bewegen m.b.v. de pijltjes toetsen
+ deze beweging word aan alle gbruikers laten zien
+ 
  
