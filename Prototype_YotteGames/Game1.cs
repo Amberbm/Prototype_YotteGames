@@ -14,12 +14,13 @@ namespace Prototype_YotteGames
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
         Texture2D  paddle;
-        int[] position= new int[3];
-        int paddleSpeed = 9;
+        List<int> position ;
+        int paddleSpeed = 3;
+        int totalPaddles = 2;
         int iD=0;
         KeyboardState currentKeyboardState;
         SpriteFont font;
-        int players = 2;
+        int currentTime;
 
         IFirebaseConfig config = new FirebaseConfig
         {
@@ -50,20 +51,17 @@ namespace Prototype_YotteGames
             spriteBatch = new SpriteBatch(GraphicsDevice);
             client = new FireSharp.FirebaseClient(config);
 
-
-            Random random = new Random();
-            Color color = new Color(random.Next(0, 250), random.Next(0, 250), random.Next(0, 250));
-
+            
             currentKeyboardState = Keyboard.GetState();
+
 
             paddle = Content.Load<Texture2D>("rodeSpeler");
             font = Content.Load<SpriteFont>("SpelFont");
-
-            // List<String> players = client.Get("ID").ResultAs<List<String>>();
-
+            
             AssignPaddle();
 
-           
+
+
         }
         
         protected void HandleInput()
@@ -78,6 +76,7 @@ namespace Prototype_YotteGames
 
                 SetData();
             }
+
             if (currentKeyboardState.IsKeyDown(Keys.Down))
             {
                 position[iD] += paddleSpeed;
@@ -86,42 +85,46 @@ namespace Prototype_YotteGames
             }
 
             if (currentKeyboardState.IsKeyDown(Keys.Escape))
-                if (previousKeyboardState.IsKeyUp(Keys.Escape))
-                    Leave();
-
+            {
+                Exit();
+            }
         }
         
-        protected void Leave()
-        {
-            SetResponse offline = client.Set("ID/" + iD+"/online",false);
-            Exit();
-        }
+        
 
         protected void SetData()
         {
-            SetResponse setPosition = client.Set("ID/" + iD + "/position", position[iD]);
+            SetResponse setPosition = client.Set("position/" + iD , position[iD]);
+        }
 
+        protected void GetSetTime()
+        {
+            currentTime = (int)DateTime.Now.TimeOfDay.TotalSeconds;
+            SetResponse setTime = client.Set("time/"+iD, currentTime);
         }
         
         protected void GetData()
         {
-            for (int i = 1; i <= players; i++)
-            {
-                position[i] = client.Get("ID/" + i + "/position").ResultAs<List<int>>()[0];
-            }
+            position = client.Get("position").ResultAs<List<int>>();
             
         }
 
         protected void AssignPaddle()
         {
-            for (int i = 1; i <= players; i++)
+            List<int> lastOnline = client.Get("time/").ResultAs<List<int>>();
+            currentTime = (int)DateTime.Now.TimeOfDay.TotalSeconds;
+            for (int i = 1; i <=  totalPaddles; i++)
             {
-                List<Boolean> on = client.Get("ID/" + i + "/online").ResultAs<List<Boolean>>();
-                if (!on[0])
+                currentTime = (int)DateTime.Now.TimeOfDay.TotalSeconds;
+                if (currentTime< lastOnline[i]  )
+                {
+                    currentTime += 86370;
+                }
+                if (lastOnline[i] + 30 < currentTime)
                 {
                     iD = i;
-                    position[iD] = client.Get("ID/" + iD + "/position").ResultAs<List<int>>()[0];
-                    SetResponse setonline = client.Set("ID/" + iD + "/online", true);
+                    SetResponse setPosition = client.Set("time/" + iD, currentTime);
+                    position = client.Get("position").ResultAs<List<int>>();
                     break;
                 }
             }
@@ -129,14 +132,15 @@ namespace Prototype_YotteGames
 
         protected override void Update(GameTime gameTime)
         {
-            base.Update(gameTime);
-           
+            
+           // GetData();
             if (iD == 0)
                 AssignPaddle();
-             else
-                 HandleInput();
-
-            //GetData();
+            else
+            {
+                HandleInput();
+                GetSetTime();
+            }
            
         }
         
@@ -145,12 +149,13 @@ namespace Prototype_YotteGames
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
             spriteBatch.Begin();
-            for (int i = 1; i <= players; i++)
-                spriteBatch.Draw(paddle, new Vector2(i * 200, client.Get("ID/" + i + "/position").ResultAs<List<int>>()[0]), Color.AliceBlue);
+            for (int i = 1; i < position.Count; i++)
+                spriteBatch.Draw(paddle, new Vector2(i * 200, position[i]), Color.AliceBlue);
+            spriteBatch.DrawString(font, iD.ToString(),  Vector2.Zero, Color.Purple);
             if (iD == 0)
                 spriteBatch.DrawString(font, "No free paddles available", new Vector2(300, 300),Color.Purple);
             spriteBatch.End();
-            base.Draw(gameTime);
+            
         }
     }
 }
